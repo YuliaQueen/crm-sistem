@@ -45,7 +45,7 @@ class WorkLogService
             $currentWeeklyRate = count($currentWeekDaysArr) * User::DAILY_RATE;
 
             /** @var User[] $users */
-            $users = User::find()->notDeleted()->notSystem()->isStaff()->with('lead')->all();
+            $users = User::find()->notDeleted()->notSystem()->isStaff()->whereNotDismissal()->with('lead')->all();
 
             /** @var Calendar[] $commonEvents */
             $commonEvents = Calendar::find()
@@ -78,10 +78,10 @@ class WorkLogService
                 $userEventDays = array_merge($commonEventsDaysArr, $userEventsDayArr);
 
                 // получение нормы часов для пользователя с учетом инд. переопределений
-                $currentWeeklyRateForUser = $this->getUserWeeklyLoad($currentWeeklyRate, $userEventDays);
+                $currentWeeklyRate = $this->getUserWeeklyLoad($currentWeeklyRate, $userEventDays);
 
                 // логирование индивидуальной недельной нагрузки
-                $logData[$user->jira_user] = ['Инд. недельная нагрузка' => $currentWeeklyRateForUser];
+                $logData[$user->jira_user] = ['Инд. недельная нагрузка' => $currentWeeklyRate];
 
                 $userTimeZone = $jiraService->getUserTimeZone($user->jira_user);
 
@@ -103,7 +103,7 @@ class WorkLogService
 
                 // сообщение отправится, если сегодня рабочий день по переопределению для пользователя или по календарю
                 if ($this->ifTodayIsUserWorkDay($userEvents) || $this->isWorkingDay($today)) {
-                    $this->sendDailyMessage($slackService, $weeklyHours, $currentWeeklyRateForUser, $yesterdayHours, $user);
+                    $this->sendDailyMessage($slackService, $weeklyHours, $currentWeeklyRate, $yesterdayHours, $user);
                 }
             }
             // сохранение массива логов
@@ -127,7 +127,7 @@ class WorkLogService
         $lastWeekDaysArray = $this->getDateIntervalArray('Monday last Week', 'Sunday last Week');
 
         /** @var User[] $users */
-        $users = User::find()->notDeleted()->notSystem()->with('lead')->all();
+        $users = User::find()->notDeleted()->notSystem()->whereNotDismissal()->with('lead')->all();
         $startDate = $lastWeekDaysArray[0];
         $endDate = end($lastWeekDaysArray);
 

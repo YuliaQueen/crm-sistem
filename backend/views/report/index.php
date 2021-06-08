@@ -51,6 +51,7 @@ $this->params['breadcrumbs'][] = $this->title;
             Копировать
         </button>
         <div class="content-data">
+            <?= "<pre>" ?>
             <?= $worklogsData ?>
         </div>
     </div>

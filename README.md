@@ -83,3 +83,28 @@
 
 Для удаления всех заданий cron, находясь в папке проекта на виртуальной машине, следует запустить
 команду `php yii cron/remove-all`.
+
+## Настройка автоматического обновления Google Sheets
+
+Для настройки API Google Sheets нужно:
+
+* создать проект на сайте https://console.cloud.google.com/;
+* на странице https://console.cloud.google.com/apis/library подключить Google Sheets API к проекту;
+* создать сервисный аккаунт на странице https://console.cloud.google.com/iam-admin/serviceaccounts;
+* сгенерировать json-файл с ключами доступа, скачать его и разместить в папке common/service/google проекта Brain CRM;
+* в файле common/params/params-local.php прописать путь к файлу ключей в параметре 'googleKeyPath'. Например, путь может
+  выглядеть так
+  `Yii::getAlias('@common') . '/services/google/google-secret-key.json'`;
+* предоставить доступ к Google таблице:
+    * в json-файле с ключами или на странице проекта в cloud.google.com найти адрес email вида `brain-crm@brain-1620898692114.iam.gserviceaccount.com`;
+    * предоставить доступ этому email в таблице Google (кнопка Настройки Доступа);
+    
+* получить данные о Google-таблице из ее URL вида 
+  `https://docs.google.com/spreadsheets/d/1a6X4SpOaDn9nVkBZr1TFsD-wPWK9BjWRFdGjmHx3zHI/edit#gid=359891960`,
+ где `1a6X4SpOaDn9nVkBZr1TFsD-wPWK9BjWRFdGjmHx3zHI` - это spreadsheetID, `359891960` - это sheetID
+* в форме добавления нового задания автообновления Google таблицы по адресу `google-sheets/create`
+  выбрать один из ранее добавленных в CRM проектов, добавить количество дней автообновления, указать spreadsheetID, sheetID,
+  а также диапазон ячеек (например, для листа Лист1 диапазон можно указать `Лист1!A1` - это будет означать, что данные будут вставляться в диапазон с 
+  координатой верхней левой ячейки равной A1 (прописывать латиницей))
+  
+* в консоли повторно инициализировать задания cron, чтобы включилось автообновление

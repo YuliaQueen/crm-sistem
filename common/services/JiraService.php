@@ -2,9 +2,11 @@
 
 namespace common\services;
 
+use common\models\enums\IssueLevel;
 use common\models\SystemSettings;
 use JiraRestApi\Configuration\ArrayConfiguration;
 use JiraRestApi\Issue\Issue;
+use JiraRestApi\Issue\IssueSearchResult;
 use JiraRestApi\Issue\IssueService;
 use JiraRestApi\Issue\Worklog;
 use JiraRestApi\JiraException;
@@ -39,7 +41,8 @@ class JiraService
                 'jiraHost' => $jiraUrl,
                 'jiraUser' => $jiraLogin,
                 'jiraPassword' => $jiraPassword,
-            ]);
+            ]
+        );
 
         $this->issueService = new IssueService($this->settings);
         $this->userService = new UserService($this->settings);
@@ -112,24 +115,23 @@ class JiraService
         $start = date('Y-m-d', $startTimestamp);
         $end = date('Y-m-d', $endTimestamp);
 
-        $jql = "project = $project AND worklogDate>=$start AND worklogDate<$end ORDER BY key, updated DESC";
+        $jql = "project = '$project' AND worklogDate>=$start AND worklogDate<$end ORDER BY key, updated DESC";
         $response = $iss->search($jql, 0, 5000);
-        $result = "<pre>";
-        $result .=
-            "<b>Project Key</b>"
-            . "\t" . "<b>Epic Key</b>"
-            . "\t" . "<b>Epic Summary</b>"
-            . "\t" . "<b>Task Key</b>"
-            . "\t" . "<b>Task Summary</b>"
-            . "\t" . "<b>Task Type</b>"
-            . "\t" . "<b>SubTask Key</b>"
-            . "\t" . "<b>SubTask Summary</b>"
-            . "\t" . "<b>SubTask Type</b>"
-            . "\t" . "<b>Дата</b>"
-            . "\t" . "<b>Автор</b>"
-            . "\t" . "<b>Затрачено</b>"
-            . "\t" . "<b>Описание работы</b>"
-            . "\t" . "<b>WorkLogId</b>"
+        $result = "Project Key"
+            . "\t" . "Epic Key"
+            . "\t" . "Epic Summary"
+            . "\t" . "Task Key"
+            . "\t" . "Task Summary"
+            . "\t" . "Task Type"
+            . "\t" . "SubTask Key"
+            . "\t" . "SubTask Summary"
+            . "\t" . "SubTask Type"
+            . "\t" . "Дата"
+            . "\t" . "Автор"
+            . "\t" . "Затрачено"
+            . "\t" . "Описание работы"
+            . "\t" . "WorkLogId"
+            . "\t" . "Сформирован"
             . "\n";
 
         /** @var Issue $issue */
@@ -224,7 +226,7 @@ class JiraService
                             $worklogId = $worklog->id;
                             $resultWorklog .= $worklogId;
                             $resultWorklog .= "\t";
-                            $result .= $resultBase . $resultWorklog . "\n";
+                            $result .= $resultBase . $resultWorklog . date('d.m.Y H:i:s') . "\n";
                         }
                     }
                 }
@@ -234,12 +236,134 @@ class JiraService
     }
 
     /**
-     * @param $number
-     * @return string
+     * @param $projectKey
+     * @param $projectStartDate
+     * @return array
+     * @throws JiraException
+     * @throws JsonMapper_Exception
      */
-    protected function format($number): string
+    public function getJiraIssuesAndWorklogs($projectKey, $projectStartDate): array
     {
-        return number_format($number, 2, ',', '');
+        $iss = $this->issueService;
+        $start = date('Y-m-d', strtotime($projectStartDate));
+        $end = date('Y-m-d', strtotime('tomorrow'));
+
+        $jql = "project = '$projectKey' AND worklogDate>=$start AND worklogDate<$end ORDER BY key, updated DESC";
+        $response = $iss->search($jql, 0, 10000);
+
+        $issuesArray = [];
+        $worklogsArray = [];
+        foreach ($response->issues as $issue) {
+            // вывод названия epic'а (если подзадача, то epic берётся от родителя)
+            if ($issue->fields->parent !== null) {
+                if ($issue->fields->parent->fields->issuetype->name === 'Epic') {
+                    [$epicKey, $epicSummary] = $this->getEpicIdAndSummaryByKey($issue->fields->parent->key);
+                } else {
+                    [$epicKey, $epicSummary] = $this->getEpicIdAndSummary($this->getParentByKey($issue->fields->parent->key));
+                }
+            } else {
+                [$epicKey, $epicSummary] = $this->getEpicIdAndSummary($issue);
+            }
+
+            $level = null;
+            $parentKey = null;
+            // назначение уровня задачи и родителя задачи
+            if (!empty($issue->fields->parent)) { // если есть родительская задача
+                $parent = $issue->fields->parent;
+                $level = IssueLevel::SUB_TASK;
+                $parentKey = $parent->key;
+                if (($parent->fields->getIssueType()->name === 'Epic')) {
+                    if (!isset($issuesArray[$parentKey])) {
+                        $issuesArray[$parentKey] = [
+                            'task_key' => $parentKey,
+                            'task_summary' => $parent->fields->summary,
+                            'task_type' => $parent->fields->getIssueType()->name,
+                            'parent_key' => null,
+                            'level' => IssueLevel::EPIC,
+                        ];
+                    }
+                } else {
+                    [$epicKeyParent, $epicSummaryParent] = $this->getEpicIdAndSummary($this->getParentByKey($parent->key));
+                    if (!isset($issuesArray[$parentKey])) {
+                        $issuesArray[$parentKey] = [
+                            'task_key' => $parentKey,
+                            'task_summary' => $parent->fields->summary,
+                            'task_type' => $parent->fields->getIssueType()->name,
+                            'parent_key' => $epicKeyParent,
+                            'level' => IssueLevel::TASK,
+                        ];
+                    }
+                    if ($epicKeyParent !== '' && $epicKeyParent !== null) {
+                        if (!isset($issuesArray[$epicKey])) {
+                            $issuesArray[$epicKey] = [
+                                'task_key' => $epicKeyParent,
+                                'task_summary' => $epicSummaryParent,
+                                'task_type' => 'Epic',
+                                'parent_key' => null,
+                                'level' => IssueLevel::EPIC,
+                            ];
+                        }
+                    }
+                }
+            } else { //если нет родительской задачи
+                if ($issue->fields->getIssueType()->name !== 'Epic') { // если это не Epic-задача
+                    $level = IssueLevel::TASK;
+                    $parentKey = $epicKey;
+                    if ($parentKey !== null) {
+                        if (!isset($issuesArray[$epicKey])) {
+                            $issuesArray[$epicKey] = [
+                                'task_key' => $epicKey,
+                                'task_summary' => $epicSummary,
+                                'task_type' => 'Epic',
+                                'parent_key' => null,
+                                'level' => IssueLevel::EPIC,
+                            ];
+                        }
+                    }
+                } else { // если это Epic-задача
+                    $level = IssueLevel::EPIC;
+                    $parentKey = null;
+                }
+            }
+
+            // формирование массива задач
+            if (!isset($issuesArray[$issue->key])) {
+                $issuesArray[$issue->key] = [
+                    'task_key' => $issue->key,
+                    'task_summary' => $issue->fields->summary,
+                    'task_type' => $issue->fields->getIssueType()->name,
+                    'parent_key' => $parentKey,
+                    'level' => $level,
+                ];
+            }
+
+            // формирование массива ворклогов
+            foreach ($iss->getWorklog($issue->key) as $worklogs) {
+                if (is_array($worklogs)) {
+                    /** @var Worklog $worklog */
+                    foreach ($worklogs as $worklog) {
+                        $worklogStarted = strtotime($worklog->started);
+                        $startTimestamp = strtotime($projectStartDate);
+                        $endTimestamp = strtotime('tomorrow');
+                        if ($startTimestamp <= $worklogStarted && $worklogStarted < $endTimestamp) {
+                            $worklogId = $worklog->id;
+                            $date = date('Y-m-d', strtotime($worklog->started));
+                            $author = $worklog->author['name'];
+                            $timespent = $worklog->timeSpentSeconds;
+                            $worklogComment = str_replace(["\n", "\r"], ['', ''], $worklog->comment);
+                            $worklogsArray[$issue->key][] = [
+                                'worklog_id' => $worklogId,
+                                'date' => $date,
+                                'author' => $author,
+                                'timespent' => $timespent,
+                                'worklog_comment' => $worklogComment,
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+        return [$issuesArray, $worklogsArray];
     }
 
     /**
@@ -253,6 +377,15 @@ class JiraService
         $usr = $this->userService;
         $user = $usr->get(['username' => $userName]);
         return $user->timeZone ? $user->timeZone : JiraService::DEFAULT_TIMEZONE;
+    }
+
+    /**
+     * @param $number
+     * @return string
+     */
+    protected function format($number): string
+    {
+        return number_format($number, 2, ',', '');
     }
 
     /**

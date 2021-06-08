@@ -22,7 +22,6 @@ class LoginForm extends Model
 
     private $_user;
 
-
     /**
      * {@inheritdoc}
      */
@@ -33,7 +32,7 @@ class LoginForm extends Model
             ['email', 'email'],
             ['email', 'filter', 'filter' => 'strtolower'],
             ['rememberMe', 'boolean'],
-            ['password', 'validatePassword']
+            ['password', 'validatePassword'],
         ];
     }
 
@@ -59,10 +58,13 @@ class LoginForm extends Model
      *
      * @return bool whether the user is logged in successfully
      */
-    public function login()
+    public function login(): bool
     {
         if ($this->validate()) {
-            return Yii::$app->user->login($this->getUser(), $this->rememberMe ? 3600 * 24 * 30 : 0);
+            if ($this->getUser()) {
+                Yii::$app->session->setFlash('success', 'Вы успешно зашли на сайт');
+                return Yii::$app->user->login($this->getUser(), $this->rememberMe ? 3600 * 24 * 30 : 0);
+            }
         }
 
         return false;
@@ -71,12 +73,12 @@ class LoginForm extends Model
     /**
      * Finds user by [[email]]
      *
-     * @return array|User|UserQuery|ActiveRecord
+     * @return ActiveRecord|array|User
      */
     protected function getUser()
     {
         if ($this->_user === null) {
-            $this->_user = User::findByEmail($this->email);
+            $this->_user = User::find()->whereEmail($this->email)->notDeleted()->whereNotDismissal()->one();
         }
 
         return $this->_user;

@@ -60,4 +60,23 @@ class UserQuery extends ActiveQuery
     {
         return $this->andWhere(['employee' => Employment::STAFF]);
     }
+
+    /**
+     * Получить модель по логину в Jira
+     * @param $name
+     * @return UserQuery
+     */
+    public function getByJiraUserName($name): UserQuery
+    {
+        return $this->andWhere(['jira_user' => $name]);
+    }
+
+    /**
+     * Добавляет условие на поиск не уволенных работников
+     * @return UserQuery
+     */
+    public function whereNotDismissal(): UserQuery
+    {
+        return $this->andWhere(['date_of_dismissal' => null]);
+    }
 }

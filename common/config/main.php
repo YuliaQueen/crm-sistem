@@ -20,5 +20,15 @@ return [
         'rbacService' => [
             'class' => RbacService::class,
         ],
+        'log' => [
+            'flushInterval' => 1,
+            'targets' => [
+                [
+                    'class' => 'yii\log\FileTarget',
+                    'levels' => ['error', 'warning'],
+                    'exportInterval' => 1,
+                ],
+            ],
+        ],
     ],
 ];

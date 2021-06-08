@@ -43,6 +43,18 @@ return [
                     'class' => 'yii\log\FileTarget',
                     'levels' => ['error', 'warning'],
                 ],
+                [
+                    'class' => 'yii\log\FileTarget',
+                    'categories' => ['project'],
+                    'logFile' => '@runtime/logs/project.log',
+                    'logVars' => [],
+                ],
+                [
+                    'class' => 'yii\log\FileTarget',
+                    'categories' => ['google_sheets_service'],
+                    'logFile' => '@runtime/logs/google_sheets.log',
+                    'logVars' => [],
+                ],
             ],
         ],
         'errorHandler' => [

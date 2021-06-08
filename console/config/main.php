@@ -53,6 +53,12 @@ return [
                     'logFile' => '@runtime/logs/slack_service.log',
                     'logVars' => [],
                 ],
+                [
+                    'class' => 'yii\log\FileTarget',
+                    'categories' => ['google_sheets_service'],
+                    'logFile' => '@runtime/logs/google_sheets.log',
+                    'logVars' => [],
+                ],
             ],
         ],
     ],

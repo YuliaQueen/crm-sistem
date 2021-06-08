@@ -12,7 +12,6 @@ use yii\base\Model;
  */
 class PerformanceForm extends Model
 {
-
     public $project;
     public $startDate;
     public $endDate;

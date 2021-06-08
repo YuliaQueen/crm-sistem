@@ -1,5 +1,6 @@
 <?php
 
+use lavrentiev\widgets\toastr\NotificationFlash;
 use yii\helpers\Html;
 use yii\helpers\Inflector;
 use yii\widgets\Breadcrumbs;
@@ -35,7 +36,13 @@ use dmstr\widgets\Alert;
     </section>
 
     <section class="content">
-        <?= Alert::widget() ?>
+        <?= NotificationFlash::widget([
+            'options' => [
+                'closeButton' => true,
+                'progressBar' => true,
+                'showDuration' => 50,
+            ],
+        ]) ?>
         <?= $content ?>
     </section>
 </div>
